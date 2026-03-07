@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interview Report — {{ candidate_name }}</title>
+  <style>
+    /* ── Page layout ──────────────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 20mm 18mm 22mm 18mm;
+      @bottom-center {
+        content: "InterviewBot Report  ·  Page " counter(page) " of " counter(pages);
+        font-size: 9px;
+        color: #9ca3af;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+      }
+    }
+
+    /* ── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
+      line-height: 1.55;
+      color: #1f2937;
+      background: #ffffff;
+    }
+
+    /* ── Colour tokens ────────────────────────────────────────── */
+    :root {
+      --brand:   #4f46e5;   /* indigo-600 */
+      --brand-l: #eef2ff;   /* indigo-50  */
+      --green:   #059669;   /* emerald-600 */
+      --amber:   #d97706;   /* amber-600  */
+      --red:     #dc2626;   /* red-600    */
+      --gray-50: #f9fafb;
+      --gray-200:#e5e7eb;
+      --gray-500:#6b7280;
+      --gray-700:#374151;
+    }
+
+    /* ── Cover / header ───────────────────────────────────────── */
+    .cover {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: #ffffff;
+      padding: 28px 28px 20px;
+      border-radius: 8px;
+      margin-bottom: 22px;
+    }
+    .cover h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+    .cover .sub { font-size: 12px; opacity: 0.85; margin-top: 4px; }
+
+    .cover-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 16px;
+      font-size: 10.5px;
+      opacity: 0.9;
+    }
+    .cover-meta span strong { display: block; font-size: 9px; opacity: 0.7;
+                               text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Section headings ─────────────────────────────────────── */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--brand);
+      border-bottom: 2px solid var(--brand-l);
+      padding-bottom: 4px;
+      margin: 20px 0 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    /* ── Score summary cards ──────────────────────────────────── */
+    .score-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .score-card {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .score-card .label {
+      font-size: 9px;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .score-card .value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 2px;
+      color: var(--gray-700);
+    }
+    .score-card.highlight .value { color: var(--brand); }
+
+    /* ── Horizontal score bars ────────────────────────────────── */
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .bar-label { width: 110px; font-size: 10px; color: var(--gray-700); flex-shrink: 0; }
+    .bar-track {
+      flex: 1;
+      height: 10px;
+      background: var(--gray-200);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #4f46e5, #7c3aed);
+    }
+    .bar-pct { width: 36px; text-align: right; font-size: 10px;
+               color: var(--gray-500); flex-shrink: 0; }
+
+    /* ── Confidence distribution ──────────────────────────────── */
+    .conf-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .conf-card {
+      border-radius: 6px;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: 10px;
+    }
+    .conf-card .count { font-size: 20px; font-weight: 700; }
+    .conf-high    { background: #ecfdf5; color: #065f46; }
+    .conf-moderate{ background: #eff6ff; color: #1e40af; }
+    .conf-low     { background: #fffbeb; color: #92400e; }
+    .conf-anxious { background: #fef2f2; color: #991b1b; }
+
+    /* ── Improvement areas ────────────────────────────────────── */
+    .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+    .pill {
+      background: var(--brand-l);
+      color: var(--brand);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    /* ── Q&A answer cards ─────────────────────────────────────── */
+    .answer-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+    .answer-card .q-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+    .answer-card .q-text {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--gray-700);
+      flex: 1;
+    }
+    .answer-card .q-badge {
+      font-size: 9px;
+      background: var(--brand-l);
+      color: var(--brand);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-left: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .answer-card .transcript {
+      font-size: 10px;
+      color: var(--gray-700);
+      background: var(--gray-50);
+      border-left: 3px solid var(--gray-200);
+      padding: 6px 8px;
+      margin: 6px 0;
+      border-radius: 0 4px 4px 0;
+    }
+
+    /* ── Per-answer mini score row ─────────────────────────────── */
+    .mini-scores {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+    }
+    .mini-score {
+      font-size: 9.5px;
+      color: var(--gray-500);
+    }
+    .mini-score strong { color: var(--gray-700); font-size: 11px; }
+
+    /* ── Confidence badge ─────────────────────────────────────── */
+    .conf-badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 9px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+    .conf-badge.high     { background: #ecfdf5; color: #065f46; }
+    .conf-badge.moderate { background: #eff6ff; color: #1e40af; }
+    .conf-badge.low      { background: #fffbeb; color: #92400e; }
+    .conf-badge.anxious  { background: #fef2f2; color: #991b1b; }
+
+    /* ── Delivery flags ───────────────────────────────────────── */
+    .flag-list {
+      list-style: none;
+      padding: 0;
+    }
+    .flag-list li {
+      font-size: 9.5px;
+      color: var(--amber);
+      padding: 1px 0;
+    }
+    .flag-list li::before { content: "⚠ "; }
+
+    /* ── Footer note ─────────────────────────────────────────── */
+    .footer-note {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid var(--gray-200);
+      font-size: 9px;
+      color: var(--gray-500);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── COVER ─────────────────────────────────────────────────────── -->
+  <div class="cover">
+    <h1>Interview Performance Report</h1>
+    <p class="sub">Prepared by InterviewBot AI · Erode Sengunthar Engineering College</p>
+    <div class="cover-meta">
+      <span><strong>Candidate</strong>{{ candidate_name }}</span>
+      <span><strong>Interview Type</strong>{{ interview_type | title }}</span>
+      <span><strong>Target Role</strong>{{ target_role or "Not specified" }}</span>
+      <span><strong>Duration</strong>{{ duration_str }}</span>
+      <span><strong>Date</strong>{{ session_date }}</span>
+    </div>
+  </div>
+
+  <!-- ── OVERALL SCORES ─────────────────────────────────────────────── -->
+  <div class="section-title">Overall Performance</div>
+  <div class="score-grid">
+    <div class="score-card highlight">
+      <div class="label">Overall Score</div>
+      <div class="value">{{ "%.1f"|format(average_overall_score) }}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Questions</div>
+      <div class="value">{{ total_questions }}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Content</div>
+      <div class="value">{{ "%.1f"|format(avg_scores.content) }}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Relevance</div>
+      <div class="value">{{ "%.1f"|format(avg_scores.relevance) }}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">Accuracy</div>
+      <div class="value">{{ "%.1f"|format(avg_scores.accuracy) }}</div>
+    </div>
+  </div>
+
+  <!-- ── TOPIC BREAKDOWN ───────────────────────────────────────────── -->
+  {% if per_topic_scores %}
+  <div class="section-title">Topic Breakdown</div>
+  {% for topic, score in per_topic_scores.items() %}
+  <div class="bar-row">
+    <div class="bar-label">{{ topic | replace("_", " ") | title }}</div>
+    <div class="bar-track">
+      <div class="bar-fill" style="width: {{ (score / 4.0 * 100) | round | int }}%;"></div>
+    </div>
+    <div class="bar-pct">{{ "%.1f"|format(score) }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- ── CONFIDENCE DISTRIBUTION ──────────────────────────────────── -->
+  <div class="section-title">Confidence Distribution</div>
+  <div class="conf-grid">
+    <div class="conf-card conf-high">
+      <div class="count">{{ confidence_distribution.high }}</div>
+      <div>High Confidence</div>
+    </div>
+    <div class="conf-card conf-moderate">
+      <div class="count">{{ confidence_distribution.moderate }}</div>
+      <div>Moderate</div>
+    </div>
+    <div class="conf-card conf-low">
+      <div class="count">{{ confidence_distribution.low }}</div>
+      <div>Low</div>
+    </div>
+    <div class="conf-card conf-anxious">
+      <div class="count">{{ confidence_distribution.anxious }}</div>
+      <div>Anxious</div>
+    </div>
+  </div>
+
+  <!-- ── IMPROVEMENT AREAS ─────────────────────────────────────────── -->
+  {% if improvement_areas %}
+  <div class="section-title">Priority Improvement Areas</div>
+  <div class="pill-row">
+    {% for area in improvement_areas %}
+    <span class="pill">{{ area | replace("_", " ") | title }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── PER-ANSWER DETAILS ─────────────────────────────────────────── -->
+  {% if answers %}
+  <div class="section-title">Answer Details</div>
+  {% for ans in answers %}
+  <div class="answer-card">
+    <div class="q-meta">
+      <div class="q-text">{{ loop.index }}. {{ ans.question_text }}</div>
+      <span class="q-badge">Diff {{ ans.difficulty }}</span>
+    </div>
+
+    {% if ans.transcript %}
+    <div class="transcript">{{ ans.transcript | truncate(300) }}</div>
+    {% endif %}
+
+    <div class="mini-scores">
+      <div class="mini-score">Content <strong>{{ ans.content_score }}/4</strong></div>
+      <div class="mini-score">Relevance <strong>{{ ans.relevance_score }}/4</strong></div>
+      <div class="mini-score">Completeness <strong>{{ ans.completeness_score }}/4</strong></div>
+      <div class="mini-score">Accuracy <strong>{{ ans.accuracy_score }}/4</strong></div>
+      <div class="mini-score">
+        Overall <strong>{{ "%.1f"|format(ans.overall_score) }}</strong>
+        <span class="conf-badge {{ ans.confidence_label }}">{{ ans.confidence_label }}</span>
+      </div>
+    </div>
+
+    {% if ans.delivery_flags %}
+    <ul class="flag-list">
+      {% for flag in ans.delivery_flags %}
+      <li>{{ flag }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <div class="footer-note">
+    Generated by InterviewBot AI — AI-NLP Powered Interview Preparation System
+    · Session {{ session_id[:8] }}…
+    · Scores on a 0–4 scale (4 = excellent)
+  </div>
+
+</body>
+</html>
