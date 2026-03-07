@@ -1,0 +1,8 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+openai-whisper==20231117
+librosa==0.10.2
+noisereduce==3.0.2
+soundfile==0.12.1
+pydantic==2.7.1
+numpy==1.26.4
