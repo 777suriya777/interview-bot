@@ -1,0 +1,51 @@
+# Model weights (too large for git)
+models/*.pt
+models/*.bin
+models/*.txt
+models/*.safetensors
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+chatbot_engine/node_modules/
+frontend/node_modules/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+!.env.example
+
+# Build outputs
+frontend/dist/
+frontend/.vite/
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Eval results
+eval_results/
+
+# Temp audio
+/tmp/*.wav
+/tmp/*.webm
