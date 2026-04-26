@@ -26,6 +26,7 @@ const {
   callASR,
   callSentiment,
   callAdaptive,
+  callNLPGenerate,
 } = require('../services');
 const { saveSessionState } = require('./session');
 
@@ -279,12 +280,33 @@ async function handleAnswerSubmit(ws, session, payload, inputMode) {
     session.askedIds.push(questionId);
   }
 
-  let nextQuestion = await callAdaptive({
-    userId             : session.userId,
-    sessionId          : session.sessionId,
-    lastScores,
-    sessionQuestionIds : session.askedIds,
-  });
+  let nextQuestion = null;
+
+  // 30% chance to generate a custom technical question if resume was provided
+  if (session.resumeText && Math.random() < 0.3) {
+    console.log(`[Session] Generating custom resume question for ${session.sessionId}`);
+    const generated = await callNLPGenerate(session.resumeText);
+    if (generated && generated.question) {
+      nextQuestion = {
+        question_id   : 'generated-' + Date.now(),
+        question_text : generated.question,
+        question_type : 'technical',
+        difficulty    : session.difficulty || 3,
+        user_level    : session.difficulty || 3,
+        selection_reason: 'resume_keyword_generation',
+      };
+    }
+  }
+
+  // Use adaptive engine if no generated question
+  if (!nextQuestion) {
+    nextQuestion = await callAdaptive({
+      userId             : session.userId,
+      sessionId          : session.sessionId,
+      lastScores,
+      sessionQuestionIds : session.askedIds,
+    });
+  }
 
   if (!nextQuestion) {
     // Adaptive engine timed out — use local fallback (spec Section 5.4)

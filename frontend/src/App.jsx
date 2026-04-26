@@ -24,6 +24,7 @@ function SetupScreen({ token, onStart, onLogout }) {
   const [interviewType, setInterviewType] = useState('technical');
   const [targetRole,    setTargetRole]    = useState('');
   const [duration,      setDuration]      = useState(30);
+  const [resumeFile,    setResumeFile]    = useState(null);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState('');
 
@@ -31,17 +32,19 @@ function SetupScreen({ token, onStart, onLogout }) {
     setLoading(true);
     setError('');
     try {
+      const formData = new FormData();
+      formData.append('interview_type', interviewType);
+      if (targetRole.trim()) formData.append('target_role', targetRole.trim());
+      formData.append('duration_minutes', duration);
+      if (resumeFile) formData.append('resume', resumeFile);
+
       const res = await fetch(`${API_BASE}/api/sessions`, {
         method:  'POST',
         headers: {
-          'Content-Type':  'application/json',
           'Authorization': `Bearer ${token}`,
+          // Content-Type is automatically set by the browser when using FormData
         },
-        body: JSON.stringify({
-          interview_type:   interviewType,
-          target_role:      targetRole.trim() || undefined,
-          duration_minutes: duration,
-        }),
+        body: formData,
       });
       const data = await res.json();
       if (!res.ok) { setError(data.detail || 'Failed to start session'); return; }
@@ -112,6 +115,22 @@ function SetupScreen({ token, onStart, onLogout }) {
             placeholder="e.g. Software Engineer, Data Scientist…"
             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm
               placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/40 transition-all"
+          />
+        </section>
+
+        {/* Resume Upload */}
+        <section className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-widest text-slate-500" htmlFor="resume-upload">
+            Upload Resume <span className="text-slate-700 font-normal">(PDF only, optional)</span>
+          </label>
+          <input
+            id="resume-upload"
+            type="file"
+            accept=".pdf"
+            onChange={e => setResumeFile(e.target.files[0])}
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm
+              file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-violet-600/20 file:text-violet-400 file:text-xs file:font-semibold
+              hover:file:bg-violet-600/30 transition-all"
           />
         </section>
 

@@ -55,6 +55,7 @@ async function loadSessionState(sessionId, userId) {
   const freshState = {
     sessionId,
     userId,
+    resumeText  : session.resume_text || null,
     askedIds    : [],
     difficulty  : session.difficulty_level || 3,
     performance : parseFloat(session.performance_score) || 0,

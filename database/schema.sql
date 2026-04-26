@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     started_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at          TIMESTAMPTZ,
     -- S3 / blob URL of generated PDF report; populated when session completes
-    report_url        VARCHAR(500)
+    report_url        VARCHAR(500),
+    resume_text       TEXT
 );
 
 -- Most common query: "get user's recent sessions for dashboard"

@@ -13,6 +13,7 @@ Key implementation details:
   3. Fallback: if Redis is unavailable, inference still works (no crash)
   4. Timeout budget: entire /evaluate should complete in < 2s for text answers
 """
+import asyncio
 import hashlib
 import json
 import logging
@@ -24,6 +25,7 @@ import redis.asyncio as aioredis
 import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+import google.generativeai as genai
 from transformers import BertTokenizer
 
 from model import InterviewBERTScorer
@@ -69,6 +71,7 @@ async def lifespan(app: FastAPI):
         state_dict = torch.load(model_path, map_location=device)
         model.load_state_dict(state_dict)
         logger.info("✓ Fine-tuned weights loaded successfully")
+        model_store["is_trained"] = True
     else:
         # No trained weights yet — model uses random BERT fine-tuning weights.
         # This allows the service to start during development before training.
@@ -77,9 +80,20 @@ async def lifespan(app: FastAPI):
             "Starting with uninitialised classification heads. "
             "Run nlp_service/train.py to generate bert_scorer.pt."
         )
+        model_store["is_trained"] = False
 
     model.to(device)
     model.eval()  # disable dropout for inference
+
+    # ── Configure Gemini API client ────────────────────────────────────
+    gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+    if gemini_api_key:
+        genai.configure(api_key=gemini_api_key)
+        model_store["gemini_model"] = genai.GenerativeModel("gemini-1.5-flash")
+        logger.info("✓ Gemini API client configured (gemini-1.5-flash)")
+    else:
+        logger.warning("GEMINI_API_KEY not set — /generate endpoint will be disabled.")
+        model_store["gemini_model"] = None
 
     # ── Connect to Redis (optional — service still works without it) ──
     redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -142,6 +156,13 @@ class HealthResponse(BaseModel):
     cache:  str
 
 
+class GenerateRequest(BaseModel):
+    resume_text: str = Field(..., description="Parsed resume text to generate a question from")
+
+class GenerateResponse(BaseModel):
+    question: str
+
+
 # ── Cache helpers ─────────────────────────────────────────────────────────────
 
 def _cache_key(question: str, answer: str) -> str:
@@ -195,6 +216,23 @@ def _run_inference(question: str, answer: str) -> dict:
     (acceptable since inference is CPU-bound and fast; for GPU use
     asyncio.to_thread() if inference time > 100ms).
     """
+    if not model_store.get("is_trained", False):
+        # Fallback rule-based scorer (as specified in README Option A)
+        q_words = set(question.lower().replace('?', ' ').replace('.', ' ').split())
+        a_words = set(answer.lower().replace('.', ' ').split())
+        overlap = len(q_words.intersection(a_words))
+        
+        # Simple heuristic
+        length_score = min(4, len(a_words) // 15)
+        rel_score = min(4, overlap // 2) if overlap > 0 else 0
+        
+        return {
+            "content": max(1, length_score),
+            "relevance": max(1, rel_score + 1),
+            "completeness": max(1, (length_score + rel_score) // 2),
+            "accuracy": max(1, rel_score + 1)
+        }
+
     tokenizer = model_store["tokenizer"]
     model     = model_store["model"]
     device    = model_store["device"]
@@ -294,3 +332,38 @@ async def health() -> HealthResponse:
         device=device_name,
         cache=redis_status,
     )
+
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate_question(req: GenerateRequest) -> GenerateResponse:
+    """
+    Generate a dynamic technical interview question based on the resume.
+    Uses Google Gemini API (gemini-1.5-flash) — no local model required.
+    """
+    gemini_model = model_store.get("gemini_model")
+    if not gemini_model:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini API not configured. Set GEMINI_API_KEY environment variable."
+        )
+
+    # Truncate resume to first 2000 chars to stay well within token limits
+    snippet = req.resume_text[:2000]
+    prompt = (
+        "You are a senior technical interviewer. Based on the candidate's resume below, "
+        "generate exactly ONE specific, challenging technical interview question that tests "
+        "a key skill mentioned in their resume. Return only the question itself, with no "
+        "preamble, numbering, or explanation.\n\n"
+        f"Resume:\n{snippet}\n\n"
+        "Interview Question:"
+    )
+
+    try:
+        response = await asyncio.to_thread(gemini_model.generate_content, prompt)
+        question_text = response.text.strip()
+        if not question_text:
+            raise ValueError("Empty response from Gemini")
+        return GenerateResponse(question=question_text)
+    except Exception as e:
+        logger.error(f"[Gemini] Question generation failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")

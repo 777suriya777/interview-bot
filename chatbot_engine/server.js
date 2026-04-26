@@ -24,13 +24,17 @@ const http    = require('http');
 const url     = require('url');
 const { WebSocketServer } = require('ws');
 const bcrypt  = require('bcryptjs');
+const multer  = require('multer');
+const pdfParse = require('pdf-parse');
 
 const db      = require('./db/queries');
 const redis   = require('./cache/redis');
 const { signToken, verifyJWT, verifyWsToken } = require('./middleware/auth');
 const { handleStartSession, handleEndSession } = require('./handlers/session');
 const { handleAnswerSubmit, handleFlagQuestion } = require('./handlers/answer');
-const { callReportGenerate } = require('./services');
+const { callReportGenerate, callNLPGenerate } = require('./services');
+
+const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
@@ -123,46 +127,84 @@ async function handleLogin(req, res) {
 // ── Session HTTP routes ───────────────────────────────────────────────────────
 
 async function handleCreateSession(req, res, user) {
-  let body;
-  try { body = await readBody(req); }
-  catch { return sendJSON(res, 400, { error: 'invalid_json', detail: 'Request body must be JSON' }); }
-
-  const { interview_type, target_role, duration_minutes } = body;
-  const validTypes = ['technical', 'behavioural', 'hr', 'mixed'];
-  if (!validTypes.includes(interview_type)) {
-    return sendJSON(res, 400, {
-      error  : 'invalid_type',
-      detail : `interview_type must be one of: ${validTypes.join(', ')}`,
-    });
-  }
-
-  try {
-    const session = await db.createSession({
-      userId        : user.userId,
-      interviewType : interview_type,
-      targetRole    : target_role,
-      difficultyLevel: 3, // always start at medium difficulty
-    });
-
-    // Select the first question
-    const firstQuestion = await db.getFirstQuestion(interview_type);
-    if (!firstQuestion) {
-      return sendJSON(res, 503, { error: 'no_questions', detail: 'Question bank is empty' });
+  // Use multer to handle multipart/form-data
+  upload.single('resume')(req, res, async (err) => {
+    if (err) return sendJSON(res, 400, { error: 'upload_error', detail: err.message });
+    
+    // Fallback: If content-type is json, req.body is already empty because multer doesn't parse JSON
+    // Wait, let's just parse JSON manually if no file? 
+    // Actually multer just skips JSON, so req.body will be empty. We should handle both cases.
+    let body = req.body || {};
+    if (Object.keys(body).length === 0 && req.headers['content-type']?.includes('application/json')) {
+       try { body = await readBody(req); } catch { return sendJSON(res, 400, { error: 'invalid_json', detail: 'Request body must be JSON' }); }
     }
 
-    return sendJSON(res, 201, {
-      session_id     : session.id,
-      first_question : {
-        id         : firstQuestion.id,
-        text       : firstQuestion.text,
-        type       : firstQuestion.type,
-        difficulty : firstQuestion.difficulty,
-      },
-    });
-  } catch (err) {
-    console.error('[Session] Create error:', err.message);
-    return sendJSON(res, 500, { error: 'server_error', detail: 'Session creation failed' });
-  }
+    const { interview_type, target_role, duration_minutes } = body;
+    const validTypes = ['technical', 'behavioural', 'hr', 'mixed'];
+    if (!validTypes.includes(interview_type)) {
+      return sendJSON(res, 400, {
+        error  : 'invalid_type',
+        detail : `interview_type must be one of: ${validTypes.join(', ')}`,
+      });
+    }
+
+    let resumeText = null;
+    if (req.file) {
+      try {
+        const pdfData = await pdfParse(req.file.buffer);
+        resumeText = pdfData.text;
+      } catch (parseErr) {
+        console.error('[Session] PDF Parse error:', parseErr.message);
+        return sendJSON(res, 400, { error: 'invalid_pdf', detail: 'Could not parse the provided resume PDF.' });
+      }
+    }
+
+    try {
+      const session = await db.createSession({
+        userId        : user.userId,
+        interviewType : interview_type,
+        targetRole    : target_role,
+        difficultyLevel: 3,
+        resumeText    : resumeText,
+      });
+
+      // Select the first question
+      let firstQuestion = null;
+      if (resumeText) {
+        const generationResult = await callNLPGenerate(resumeText);
+        if (generationResult && generationResult.question) {
+           // We assign a special uuid for generated questions, or just let the frontend know
+           firstQuestion = {
+              id: 'generated-' + Date.now(),
+              text: generationResult.question,
+              type: 'technical',
+              difficulty: 3,
+           };
+        }
+      }
+
+      if (!firstQuestion) {
+         firstQuestion = await db.getFirstQuestion(interview_type);
+      }
+      
+      if (!firstQuestion) {
+        return sendJSON(res, 503, { error: 'no_questions', detail: 'Question bank is empty' });
+      }
+
+      return sendJSON(res, 201, {
+        session_id     : session.id,
+        first_question : {
+          id         : firstQuestion.id,
+          text       : firstQuestion.text,
+          type       : firstQuestion.type,
+          difficulty : firstQuestion.difficulty,
+        },
+      });
+    } catch (dbErr) {
+      console.error('[Session] Create error:', dbErr.message);
+      return sendJSON(res, 500, { error: 'server_error', detail: 'Session creation failed' });
+    }
+  });
 }
 
 async function handleGetReport(req, res, user, sessionId) {
