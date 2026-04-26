@@ -51,12 +51,12 @@ async function createUser({ email, name, hashedPassword, oauthProvider, oauthSub
 /**
  * Create a new session. Returns the created row.
  */
-async function createSession({ userId, interviewType, targetRole, difficultyLevel }) {
+async function createSession({ userId, interviewType, targetRole, difficultyLevel, resumeText }) {
   const { rows } = await pool.query(
-    `INSERT INTO sessions (user_id, interview_type, target_role, difficulty_level)
-     VALUES ($1::uuid, $2, $3, $4)
-     RETURNING id, user_id, interview_type, target_role, difficulty_level, status, started_at`,
-    [userId, interviewType, targetRole || null, difficultyLevel || 3]
+    `INSERT INTO sessions (user_id, interview_type, target_role, difficulty_level, resume_text)
+     VALUES ($1::uuid, $2, $3, $4, $5)
+     RETURNING id, user_id, interview_type, target_role, difficulty_level, status, started_at, resume_text`,
+    [userId, interviewType, targetRole || null, difficultyLevel || 3, resumeText || null]
   );
   return rows[0];
 }

@@ -10,8 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Pre-install whisper dependencies
+RUN pip install --no-cache-dir numpy torch tqdm more-itertools tiktoken
+
+# Copy requirements and install without build isolation
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 COPY . .
 

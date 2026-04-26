@@ -151,9 +151,25 @@ export default function InterviewSession({
   const [questionCount,   setQuestionCount]   = useState(1);
   const [sessionEnded,    setSessionEnded]    = useState(false);
   const [reportUrl,       setReportUrl]       = useState(null);
+  const [ttsEnabled,      setTtsEnabled]      = useState(true);
   const textareaRef = useRef(null);
 
   const voice = useVoiceRecorder();
+
+  // ── Text-to-Speech (TTS) ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (ttsEnabled && currentQuestion?.text) {
+      // Cancel any ongoing speech so they don't overlap
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(currentQuestion.text);
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [currentQuestion, ttsEnabled]);
+
+  // Clean up TTS when unmounting
+  useEffect(() => {
+    return () => window.speechSynthesis.cancel();
+  }, []);
 
   // ── Feedback from server ──────────────────────────────────────────────────
   const handleFeedback = useCallback((payload) => {
@@ -310,6 +326,21 @@ export default function InterviewSession({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (ttsEnabled) window.speechSynthesis.cancel();
+              else if (currentQuestion) window.speechSynthesis.speak(new SpeechSynthesisUtterance(currentQuestion.text));
+              setTtsEnabled(!ttsEnabled);
+            }}
+            title={ttsEnabled ? "Disable Read Aloud" : "Enable Read Aloud"}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all
+              ${ttsEnabled 
+                ? 'bg-violet-500/15 text-violet-300 border-violet-500/30' 
+                : 'bg-transparent text-slate-500 border-transparent hover:bg-slate-800'}`}
+          >
+            {ttsEnabled ? '🔊 Sound On' : '🔇 Sound Off'}
+          </button>
+          
           {currentQuestion && (
             <button
               onClick={flagQuestion}

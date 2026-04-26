@@ -25,7 +25,7 @@ const REPORT_URL    = process.env.REPORT_SERVICE_URL   || 'http://report-service
 
 // ── Timeouts (milliseconds) ───────────────────────────────────────────────────
 const TIMEOUT_NLP      = 5_000;
-const TIMEOUT_ASR      = 8_000;
+const TIMEOUT_ASR      = 60_000;
 const TIMEOUT_SENTIMENT= 5_000;
 const TIMEOUT_ADAPTIVE = 3_000;
 const TIMEOUT_REPORT   = 30_000;
@@ -53,6 +53,26 @@ async function callNLP(questionText, answerText) {
     const code = err.code === 'ECONNABORTED' ? 'nlp_timeout' : 'nlp_error';
     console.error(`[NLP] ${code}: ${err.message}`);
     return null; // caller handles null → neutral scores
+  }
+}
+
+/**
+ * Request a custom interview question based on resume.
+ *
+ * @param {string} resumeText
+ * @returns {object|null} Generated question result
+ */
+async function callNLPGenerate(resumeText) {
+  try {
+    const { data } = await axios.post(
+      `${NLP_URL}/generate`,
+      { resume_text: resumeText },
+      { timeout: 30000 } // Takes longer to generate
+    );
+    return data;
+  } catch (err) {
+    console.error(`[NLP Generate] Error: ${err.message}`);
+    return null;
   }
 }
 
@@ -179,6 +199,7 @@ async function callReportGenerate(sessionId) {
 
 module.exports = {
   callNLP,
+  callNLPGenerate,
   callASR,
   callSentiment,
   callAdaptive,
